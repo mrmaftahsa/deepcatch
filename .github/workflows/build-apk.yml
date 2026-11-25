@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -46,3 +48,11 @@ jobs:
         with:
           name: deep-catch-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Publish release with direct APK link
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk deep-catch.apk
+          gh release delete latest --cleanup-tag -y || true
+          gh release create latest deep-catch.apk --title "Deep Catch (latest)" --notes "Latest auto-built APK" --target ${{ github.sha }}
