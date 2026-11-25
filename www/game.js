@@ -77,7 +77,7 @@ function vib(ms) { if (S.mute) return; try { navigator.vibrate(ms); } catch (e) 
 
 /* ---------- missions ---------- */
 function newMission() {
-  const r = Math.random(), D = depthMax();
+  const r = Math.random(), D = depthMax() + Math.min(5, Math.floor((Number(S.dives) || 0) / 4)) * 150;
   if (r < 0.5) {
     const av = SP.filter(s => s.min <= D - 10 && !s.still);
     const sp = av[rint(0, av.length - 1)];
@@ -298,10 +298,14 @@ function update(dt) {
       if (f.x > W + 60) f.x = -60;
       let dx = f.x - cx, dy = f.y - cy;
       if (st === 'down') {
-        if (!f.sp.still && !f.sch && Math.abs(dy) < 90 && Math.abs(dx) < 70) {
+        const deepHunter = f.sp.min >= 600;
+        const fleeY = deepHunter ? 132 : 90;
+        const fleeX = deepHunter ? 112 : 70;
+        if (!f.sp.still && !f.sch && Math.abs(dy) < fleeY && Math.abs(dx) < fleeX) {
           const sg = Math.sign(dx) || 1;
-          f.x += sg * 170 * dt;
-          f.vx = Math.abs(f.vx || 40) * sg;
+          const force = deepHunter ? 245 : 170;
+          f.x += sg * force * dt;
+          f.vx = Math.abs(f.vx || 40) * sg * (deepHunter ? 1.15 : 1);
         }
       } else {
         if (P.magnet && hooked.length < cap()) {
