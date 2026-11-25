@@ -19,6 +19,7 @@
   let activeCurrent = -1;
   let previousPower = { magnet: 0, shield: 0, dbl: 0 };
   let lastBossReward = 0;
+  let diveZoneIndex = 0;
   let bubbleSeed = 17;
   const bubbles = [];
   for (let i = 0; i < 34; i++) {
@@ -52,6 +53,7 @@
   startDive = function () {
     baseStartDive();
     const zi = zoneIndex();
+    diveZoneIndex = zi;
     const baseDepth = maxPx / PX;
     const bonusDepth = ZONES[zi].depth;
     maxPx += bonusDepth * PX;
@@ -209,7 +211,7 @@
     // Resolve a flawless boss escape as a meaningful expedition reward.
     if (!wasResult && st === 'result' && boss && !boss.rewardPaid) {
       const clean = boss.hits === 0 && !boss.defeated;
-      const reward = Math.round((clean ? 1800 : 450) * (zoneIndex() + 1));
+      const reward = Math.round((clean ? 1800 : 450) * (diveZoneIndex + 1));
       S.money += reward;
       earned += reward;
       lastBossReward = reward;
@@ -229,7 +231,7 @@
     // Soft drifting bubbles add depth without obscuring gameplay.
     ctx.save();
     for (const b of bubbles) {
-      const y = ((b.y - t * b.drift + 960) % 960);
+      const y = (((b.y - t * b.drift) % 960) + 960) % 960;
       ctx.globalAlpha = 0.12 + 0.08 * Math.sin(t * 1.6 + b.phase);
       ctx.beginPath();
       ctx.arc(b.x + Math.sin(t + b.phase) * 5, y, b.r, 0, Math.PI * 2);
