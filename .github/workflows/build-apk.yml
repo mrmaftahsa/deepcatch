@@ -2,6 +2,8 @@ name: Build Android APK
 
 on:
   push:
+    branches: [main, master, gameplay-overhaul]
+  pull_request:
     branches: [main, master]
   workflow_dispatch:
 
@@ -21,6 +23,11 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Validate game JavaScript
+        run: |
+          node --check www/game.js
+          node --check www/game-enhancements.js
 
       - name: Install dependencies
         run: npm install
@@ -50,6 +57,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Publish release with direct APK link
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
