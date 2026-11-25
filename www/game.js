@@ -1,16 +1,30 @@
 'use strict';
 /* Deep Catch v2 - arcade fishing with hazards, power-ups, combos, missions (original art, drawn with canvas) */
-const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const cv = document.getElementById('c');
+// Keep Canvas2D compositing predictable on Android WebView. A non-transparent
+// backing surface avoids an extra WebView alpha-compositing pass.
+const ctx = cv.getContext('2d', { alpha: false, desynchronized: false });
 const W = 450, PX = 10, RANGE = 9000;
 let H = 800, sc = 1;
 function resize() {
-  const d = window.devicePixelRatio || 1;
-  cv.width = Math.floor(innerWidth * d);
-  cv.height = Math.floor(innerHeight * d);
+  // Cap the backing resolution on high-density phones: the game is vector art,
+  // and a 2x backing store is crisp while avoiding oversized mobile canvases.
+  const d = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const rect = cv.getBoundingClientRect();
+  const cssW = Math.max(1, Math.round(rect.width || window.innerWidth));
+  const cssH = Math.max(1, Math.round(rect.height || window.innerHeight));
+  cv.width = Math.max(1, Math.round(cssW * d));
+  cv.height = Math.max(1, Math.round(cssH * d));
   sc = cv.width / W;
   H = cv.height / sc;
+  // Resizing resets the browser's Canvas2D state and any stale clipping path.
+  ctx.setTransform(sc, 0, 0, sc, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
 }
-addEventListener('resize', resize);
+addEventListener('resize', resize, { passive: true });
+addEventListener('orientationchange', () => requestAnimationFrame(resize), { passive: true });
+if (window.visualViewport) window.visualViewport.addEventListener('resize', resize, { passive: true });
 resize();
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -767,7 +781,23 @@ function drawResult() {
 }
 
 function draw() {
+  // Establish a known state every frame so effects cannot leak alpha, shadows,
+  // blend modes or dashed strokes into unrelated sprites and HUD elements.
   ctx.setTransform(sc, 0, 0, sc, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.filter = 'none';
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'rgba(0,0,0,0)';
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.setLineDash([]);
+  ctx.lineDashOffset = 0;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 10;
+  ctx.imageSmoothingEnabled = true;
+  ctx.clearRect(0, 0, W, H);
   btns.length = 0;
   if (st === 'trophy') { drawTrophy(); return; }
   if (shake > 0) ctx.translate(rand(-1, 1) * shake * 14, rand(-1, 1) * shake * 14);
@@ -780,7 +810,13 @@ function draw() {
 
 /* ---------- input ---------- */
 let pressed = false, lastY = 0;
-function pt(e) { return { x: e.clientX / innerWidth * W, y: e.clientY / innerHeight * H }; }
+function pt(e) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: clamp((e.clientX - r.left) / Math.max(1, r.width) * W, 0, W),
+    y: clamp((e.clientY - r.top) / Math.max(1, r.height) * H, 0, H)
+  };
+}
 cv.addEventListener('pointerdown', e => {
   const p = pt(e); pressed = true; lastY = p.y;
   try { if (ac && ac.state === 'suspended') ac.resume(); } catch (er) {}
@@ -804,8 +840,13 @@ addEventListener('pointercancel', () => { pressed = false; });
 /* ---------- loop ---------- */
 let last = performance.now();
 function loop(n) {
-  const dt = Math.min(0.05, (n - last) / 1000); last = n;
-  update(dt); draw();
+  // Ignore the time spent backgrounded; returning to the game must not cause
+  // a huge simulation step or a burst of stale animation frames.
+  const dt = Math.min(0.033, Math.max(0, (n - last) / 1000));
+  last = n;
+  update(dt);
+  draw();
   requestAnimationFrame(loop);
 }
+document.addEventListener('visibilitychange', () => { last = performance.now(); });
 requestAnimationFrame(loop);
