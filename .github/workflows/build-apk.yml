@@ -1,9 +1,7 @@
 name: Build Android APK
 on:
   push:
-    branches: [main, deepcatch-v3]
-  pull_request:
-    branches: [main]
+    branches: [deepcatch-arcade, deepcatch-v3, main]
   workflow_dispatch:
 jobs:
   build:
@@ -27,5 +25,5 @@ jobs:
       - run: cd android && chmod +x gradlew && ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: deep-catch-v3-apk
+          name: deep-catch-arcade-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
