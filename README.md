@@ -1,20 +1,13 @@
-# Deep Catch
+# Deep Catch 3.0 — Sunlit Reef alpha
 
-Simple arcade fishing game. Drag your finger left/right to steer the hook down,
-then catch fish on the way up. Sell them, upgrade your line, hook size and fish value,
-and fill the Trophy Room.
+A new Phaser 3 + TypeScript prototype. The legacy game is retained in www/ for reference; Vite builds the new root index.html.
 
-## Get the APK (no installs on your PC)
+## Run
+- Node 22: npm install, npm run dev
+- npm test: economy unit tests
+- npm run build: type check and bundle
+- Android: open Actions, choose the deepcatch-v3 build, download deep-catch-v3-apk after it succeeds.
 
-1. Create a free account at github.com and make a **New repository** (any name).
-2. Click **Add file > Upload files**, drag in everything from this folder
-   (`www`, `.github`, `package.json`, `capacitor.config.json`, `README.md`) and click **Commit changes**.
-   - If the hidden `.github` folder doesn't upload: click **Add file > Create new file**,
-     type `.github/workflows/build-apk.yml` as the name, and paste in the contents of that file.
-3. Open the **Actions** tab. The "Build Android APK" job starts automatically
-   (or click it, then **Run workflow**). It takes about 5-8 minutes.
-4. When it shows a green check, open the run and download **deep-catch-apk** at the bottom.
-5. Unzip it, send `app-debug.apk` to your phone and install it
-   (allow "Install unknown apps" when asked).
+Drag to steer. Avoid jellyfish, reel up whenever ready, catch fish on ascent and return safely. Buy gear and discover ten species. A second press of reel activates a single speed boost.
 
-To change the game, edit `www/game.js` on GitHub (pencil icon) and commit; a new APK builds automatically.
+This is a vertical slice, not a finished replacement. Procedural textures are placeholders; other regions, bosses, music, legacy save migration, release signing and device playtesting are pending. V3 uses its own save key to protect old progress. Do not merge until verified.
