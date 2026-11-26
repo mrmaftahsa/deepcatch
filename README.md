@@ -17,4 +17,4 @@ and fill the Trophy Room.
 5. Unzip it, send `app-debug.apk` to your phone and install it
    (allow "Install unknown apps" when asked).
 
-To change the game, edit `www/game.js` on GitHub (pencil icon) and commit; a new APK builds automatically.
+To change the game, edit the files in `www/` (`logic.js` = rules, `art.js` = graphics, `ui.js` = screens, `data.js` = fish and upgrade prices) on GitHub (pencil icon) and commit; a new APK builds automatically.
