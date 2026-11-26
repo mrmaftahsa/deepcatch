@@ -26,8 +26,7 @@ jobs:
 
       - name: Validate game JavaScript
         run: |
-          node --check www/game.js
-          node --check www/game-enhancements.js
+          for f in www/*.js; do echo "checking $f"; node --check "$f"; done
 
       - name: Install dependencies
         run: npm install
