@@ -423,7 +423,7 @@ function drawBoat() {
   const bob = Math.sin(t * 2) * 3;
   ctx.save(); ctx.translate(130, bob);
   ctx.beginPath(); ctx.ellipse(0, 12, 112, 10, 0, 0, TAU); ctx.fillStyle = 'rgba(0,60,70,0.25)'; ctx.fill();
-  let g = ctx.createLinearGradient(0, -48, 0, 8); g.addColorStop(0, '#d12a2a'); g.addColorStop(1, '#8c1212');
+  let g = ctx.createLinearGradient(0, -48, 0, 8); g.addColorStop(0, skinObj().hull[0]); g.addColorStop(1, skinObj().hull[1]);
   poly([[-100, -40], [100, -48], [78, 8], [-72, 8]], g);
   g = ctx.createLinearGradient(0, -22, 0, 8); g.addColorStop(0, '#ff8a2a'); g.addColorStop(1, '#e0590a');
   poly([[-88, -14], [88, -22], [78, 8], [-72, 8]], g);

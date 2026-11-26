@@ -7,6 +7,7 @@ let camY = -H * 0.42, t = 0, resT = 0, maxPx = 600;
 let AP = {}, boostE = 0, combo = 0, comboT = 0, maxCombo = 0, stun = 0, tangle = 0, invul = 0, shake = 0, flash = 0;
 let hp = 3, hpMax = 3, hurtT = 0, healT = 0, sharkT = 2, sharkN = 0, zoneIdx = 0, banner = null, dmgTaken = 0, vyNow = 200, rebirthArm = 0;
 let res = {}, dispMoney = S.money;
+let bosses = [], bonusCash = 0, nearCount = 0, slow = 0, nmT = 0, hbT = 0, gReward = null, gSd = 0;
 const ambient = [], bubbles = [];
 for (let i = 0; i < 7; i++) {
   const sp = SP[rint(0, 4)];
@@ -45,14 +46,17 @@ function mkHaz(k, x, y) {
 }
 
 /* ---------- dive setup ---------- */
-function startDive() {
+function startDive(daily) {
+  DAILY = !!daily;
   go('down');
   hook.x = W / 2; hook.y = 40; hook.hv = 0; tx = W / 2;
   hooked = []; fish = []; floats = []; orbs = []; hazards = []; sharks = []; drops = []; parts = []; rapids = []; rings = []; flyers = []; chips = [];
+  bosses = []; bonusCash = 0; nearCount = 0; slow = 0; nmT = 0; hbT = 0;
   AP = {}; boostE = 0; combo = 0; comboT = 0; maxCombo = 0; stun = 0; tangle = 0; invul = 0; shake = 0; flash = 0; dmgTaken = 0;
   hpMax = maxHp(); hp = hpMax; hurtT = 0; healT = 0; zoneIdx = 0; banner = null; sharkN = 0; sharkT = rand(1, 2);
   const D = depthMax(); maxPx = D * PX;
-  const dens = Math.min(3, 1 + 0.1 * S.pearls) * ((typeof DENS_OVR !== 'undefined') ? DENS_OVR : 1);
+  const _R = Math.random; if (DAILY) Math.random = mulberry32(hashStr('deepcatch' + today()));
+  const dens = (DAILY ? 1 : Math.min(3, 1 + 0.1 * S.pearls)) * ((typeof DENS_OVR !== 'undefined') ? DENS_OVR : 1);
   const ZD = [1.9, 1.4, 0.95, 0.7, 0.6];
 
   for (let m = 12; m <= D; m += 6) {
@@ -109,13 +113,27 @@ function startDive() {
       orbs.push({ x: rand(40, W - 40), y: m * PX + rand(-60, 60), k, ph: rand(0, 6), got: 0 });
     }
   }
-  if (S.streak >= 2) { AP.shield = 1; addChip('shield').show = true; toast('LUCKY CHARM: FREE SHIELD!', '#7fe3ff'); }
+  // bosses: three alternating tentacles that lunge in rhythm
+  for (let m = 300; m < D - 40; m += 300) {
+    const y0 = m * PX, y1 = y0 + 300;
+    hazards = hazards.filter(h => h.y < y0 - 40 || h.y > y1 + 40);
+    const side0 = Math.random() < 0.5 ? -1 : 1;
+    [50, 150, 250].forEach((off, i) => {
+      const e = mkHaz('eel', 0, y0 + off);
+      e.boss = 1; e.side = i % 2 ? -side0 : side0; e.x = e.side < 0 ? 0 : W; e.reach = 0.8 * W; e.s = 'wait'; e.tm = 0.3 + i * 0.55;
+      hazards.push(e);
+    });
+    bosses.push({ y0, y1, cleared: 0, hurt: 0, seen: 0, n: BOSSN[(m / 300 - 1) % BOSSN.length] });
+  }
+  Math.random = _R;
+  if (S.streak >= 2 && !DAILY) { AP.shield = 1; addChip('shield').show = true; toast('LUCKY CHARM: FREE SHIELD!', '#7fe3ff'); }
+  if (DAILY) toast('DAILY DIVE: SAME FOR EVERYONE!', '#ffe14d');
   if (S.dives < 2) { toast('DRAG TO STEER!', '#fff'); toast('DODGE THE HAZARDS!', '#e6b3ff'); }
   banner = { n: ZONES[0].n, sub: ZONES[0].sub, t: 0 };
 }
 
 function go(s) { st = s; fade = 1; scrollY = 0; rebirthArm = 0; }
-function toMenu() { hooked = []; hook.x = W / 2; hook.y = 40; hook.hv = 0; tx = W / 2; chips = []; flyers = []; AP = {}; go('menu'); }
+function toMenu() { DAILY = false; hooked = []; hook.x = W / 2; hook.y = 40; hook.hv = 0; tx = W / 2; chips = []; flyers = []; AP = {}; go('menu'); }
 
 /* ---------- speeds & currents ---------- */
 function vDown() { return (200 + 0.3 * depthMax()) * Math.min(1, 0.45 + hook.y / 400); }
@@ -176,6 +194,8 @@ function damage(n) {
   }
   hp -= n; hurtT = 0.5; dmgTaken += n; invul = 1.15; shake = 0.55; flash = 1; vib(90); sfx.hit();
   if (hp <= 0) { hp = 0; snapLine(); return false; }
+  for (const b of bosses) if (hook.y >= b.y0 - 60 && hook.y <= b.y1 + 60) b.hurt = 1;
+  if (hp === 1) { toast('LAST HEART!', '#ff5a5a'); slow = Math.max(slow, 0.5); }
   return true;
 }
 function hit(h) {
@@ -218,6 +238,13 @@ function snapLine() {
   toast('LINE SNAPPED!', '#ff5a5a');
 }
 
+function nearMiss(k, label) {
+  const depth = hook.y / PX, v = Math.max(1, Math.round(mult() * (10 + depth * 0.25) * k));
+  bonusCash += v; nearCount++; nmT = 0.5; slow = Math.max(slow, k > 1 ? 0.5 : 0.25);
+  floats.push({ x: hook.x - 6, y: hook.y - 10, txt: (label || 'CLOSE!') + ' +$' + fmt(v), col: '#7fe8ff', life: 1.1 });
+  ring(hook.x - 6, hook.y + 30, '#7fe8ff', 60, 3); tone(1000, 0.08, 'triangle', 0.05, 1.4); vib(10);
+}
+
 /* ---------- end of dive ---------- */
 function finishDive() {
   let sum = 0, newT = false;
@@ -226,6 +253,7 @@ function finishDive() {
     sum += h.val;
     if (!S.caught[n]) newT = true;
     S.caught[n] = (S.caught[n] || 0) + 1;
+    if (h.f.gold) S.shiny[n] = 1;
     for (const m of S.ms) {
       if (m.t === 'catch' && m.sp === n) m.p++;
       if (m.t === 'gold' && h.f.gold) m.p++;
@@ -236,21 +264,39 @@ function finishDive() {
     if (m.t === 'combo' && maxCombo >= m.n) m.p = m.n;
     if (m.t === 'flawless' && dmgTaken === 0 && hooked.length > 0) m.p = 1;
   }
+  sum += bonusCash;
   let mbonus = 0, doneMs = 0;
   S.ms = S.ms.map(m => {
     if (m.p >= m.n) { mbonus += m.r; doneMs++; return newMission(); }
     return m;
   });
-  res = { failed: false, earned: sum, mbonus, doneMs, fish: hooked.length, combo: maxCombo, newT, flawless: dmgTaken === 0 };
+  const setsDone = []; let setB = 0;
+  for (const ss of SETS) if (!S.sets[ss.n] && ss.idx.every(i => S.caught[SP[i].n])) { S.sets[ss.n] = 1; setB += ss.base; setsDone.push(ss.n); if (ss.skin) unlockSkin(ss.skin); }
+  mbonus += setB;
+  res = { failed: false, earned: sum, mbonus, doneMs, fish: hooked.length, combo: maxCombo, newT, flawless: dmgTaken === 0, setsDone, near: nearCount, bonus: bonusCash };
   S.streak = 0;
-  S.money += sum + mbonus; S.dives++; S.best = Math.max(S.best || 0, depthMax()); save();
+  if (DAILY) { res.daily = dailyResult(sum); S.money += mbonus; }
+  else { S.money += sum + mbonus; S.dives++; S.best = Math.max(S.best || 0, depthMax()); }
+  save();
   AP = {}; chips = []; flyers = [];
   st = 'result'; resT = 0; hook.y = 30; fade = 0.6;
   if (sum > 0) sfx.sell();
 }
+function dailyResult(score) {
+  let tier = 0; DAILY_T.forEach((v, i) => { if (score >= v) tier = i + 1; });
+  if (S.dailyDate !== today()) { S.dailyDate = today(); S.dailyTier = 0; S.dailyBest = 0; }
+  let reward = 0;
+  for (let k = S.dailyTier + 1; k <= tier; k++) reward += dailyReward(k) - dailyReward(k - 1);
+  if (tier > S.dailyTier) S.dailyTier = tier;
+  const nb = score > S.dailyBest; if (nb) S.dailyBest = score;
+  S.money += reward; save();
+  return { score, tier, reward, newBest: nb };
+}
 function finishSnap() {
-  S.streak = (S.streak || 0) + 1;
-  S.money += res.earned; S.dives++; save();
+  res.earned += bonusCash; res.near = nearCount;
+  if (DAILY) { res.daily = dailyResult(res.earned); }
+  else { S.streak = (S.streak || 0) + 1; S.money += res.earned; S.dives++; }
+  save();
   st = 'result'; resT = 0; hook.y = 30; fade = 0.6; chips = []; flyers = []; AP = {};
 }
 
@@ -268,15 +314,38 @@ function rebirth() {
   if (!canRebirth()) return;
   if (!rebirthArm) { rebirthArm = 3; sfx.warn(); return; }
   S.pearls++; S.money = 0; S.ld = S.lc = S.lv = S.lk = S.ls = S.lr = 0;
-  S.ms = []; ensureMissions(); save(); rebirthArm = 0; sfx.sell();
+  S.ms = []; ensureMissions(); save(); rebirthArm = 0; sfx.sell(); unlockSkin('toxic');
   toast('REBORN! PEARL x' + S.pearls, '#ffe9a8'); dispMoney = 0;
 }
-function claimGift() {
-  if (S.gift === today()) { toast('COME BACK TOMORROW!', '#ffd24a'); sfx.deny(); return; }
-  let r = Math.round((80 + 80 * (S.ld + S.lc + S.lv + S.lk + S.ls + S.lr)) * rand(1, 2.5) * (1 + S.pearls * 0.4));
-  if (Math.random() < 0.12) { r *= 5; toast('JACKPOT!', '#ffe14d'); }
-  S.money += r; S.gift = today(); save(); sfx.sell();
-  toast('DAILY GIFT +$' + fmt(r), '#ffe14d');
+function giftInfo() {
+  const d = dayNum(today()) - dayNum(S.gift), claimed = S.gift === today();
+  const sd = S.streakDays || 0;
+  const next = claimed ? sd % 7 : (d === 1 ? sd % 7 : 0);
+  const done = claimed ? ((sd - 1) % 7) + 1 : next;
+  return { claimed, next, done };
+}
+function claimGift() { sfx.tap(); go('gift'); }
+function doClaim() {
+  const g = giftInfo();
+  if (g.claimed) { sfx.deny(); return; }
+  const i = g.next;
+  let r = Math.round(giftBase() * GIFT_K[i] * rand(1, 1.3));
+  if (Math.random() < 0.12) { r *= 3; toast('JACKPOT x3!', '#ffe14d'); }
+  S.money += r; S.gift = today(); S.streakDays = i + 1;
+  if (i === 6) unlockSkin('pirate');
+  save(); sfx.sell(); vib(30);
+  toast('DAY ' + (i + 1) + ' CHEST +$' + fmt(r), '#ffe14d');
+  burst(W / 2, H * 0.5, '#ffe14d', 30, 260);
+}
+let musT = 0, musI = 0;
+function music(dt) {
+  if (st !== 'down' && st !== 'up') return;
+  musT -= dt; if (musT > 0) return;
+  musT = 0.42; musI++;
+  const z = zoneIdx % 5, scl = [[0, 2, 4, 7, 9], [0, 3, 5, 7, 10], [0, 2, 3, 7, 8], [0, 1, 5, 7, 8], [0, 3, 6, 7, 10]][z];
+  const n = scl[[0, 2, 1, 3, 2, 4, 3, 1][musI % 8]], base = [220, 196, 174, 155, 130][z];
+  tone(base * Math.pow(2, n / 12), 0.5, 'sine', 0.018);
+  if (musI % 4 === 0) tone(base / 2, 0.9, 'sine', 0.025);
 }
 function affordable() { return UP.some(u => S[u.k] < u.max && S.money >= u.cost(S[u.k])); }
 
@@ -304,6 +373,8 @@ function catchFish(f, cx, cy) {
 
 /* ---------- main update ---------- */
 function update(dt) {
+  music(dt);
+  if (slow > 0) { slow = Math.max(0, slow - dt); dt *= 0.35; }
   t += dt;
   shake = Math.max(0, shake - dt * 2.5); invul = Math.max(0, invul - dt); stun = Math.max(0, stun - dt);
   flash = Math.max(0, flash - dt * 2.2); hurtT = Math.max(0, hurtT - dt); healT = Math.max(0, healT - dt * 2);
@@ -372,6 +443,8 @@ function update(dt) {
 
 function updateDive(dt) {
   const D = depthMax(), depth = hook.y / PX;
+  nmT = Math.max(0, nmT - dt);
+  if (hp === 1) { hbT -= dt; if (hbT <= 0) { hbT = 0.85; tone(70, 0.14, 'sine', 0.08, 0.7); } }
   for (const k in AP) {
     if (k === 'shield') continue;
     AP[k] -= dt;
@@ -407,6 +480,7 @@ function updateDive(dt) {
   if (boostE > 0.2 && Math.random() < dt * 40) {
     parts.push({ x: cx + rand(-6, 6), y: cy + (st === 'down' ? -10 : 20), vx: rand(-20, 20), vy: st === 'down' ? -90 : 90, life: 0.5, l0: 0.95, c: '#ffae5e', r: rand(2, 4) });
   }
+  if (Math.abs(hook.hv) > 150 && Math.random() < dt * 22) parts.push({ x: cx + rand(-4, 4), y: cy + rand(-4, 10), vx: 0, vy: 10, life: 0.5, l0: 0.95, c: skinObj().trail, r: rand(1.5, 2.8) });
   if (AP.dbl && Math.random() < dt * 8) parts.push({ x: cx + rand(-26, 26), y: cy + rand(-10, 20), vx: 0, vy: -50, life: 0.7, l0: 0.95, c: '#ffe14d', r: rand(1.5, 3) });
 
   const MAGR = 200;
@@ -460,17 +534,32 @@ function updateDive(dt) {
       }
     } else if (h.k === 'eel') {
       const dyh = Math.abs(h.y - cy);
-      if (h.s === 'idle') {
+      if (h.s === 'wait') {
+        if (Math.abs(hook.y - h.y) < 480) { h.tm -= dt; if (h.tm <= 0) { h.s = 'warn'; h.tm = 0.75; sfx.warn(); } }
+      } else if (h.s === 'idle') {
         if (dyh < vyNow * 0.9 + 70 && ((st === 'down' && h.y > cy) || (st === 'up' && h.y < cy))) { h.s = 'warn'; h.tm = 0.8; sfx.warn(); }
       } else if (h.s === 'warn') { h.tm -= dt; if (h.tm <= 0) { h.s = 'lunge'; h.ext = 0; } }
-      else if (h.s === 'lunge') { h.ext += dt * 950; if (h.ext >= h.reach) { h.ext = h.reach; h.s = 'hold'; h.tm = 0.25; } }
+      else if (h.s === 'lunge') { h.ext += dt * (h.boss ? 1200 : 950); if (h.ext >= h.reach) { h.ext = h.reach; h.s = 'hold'; h.tm = 0.25; } }
       else if (h.s === 'hold') { h.tm -= dt; if (h.tm <= 0) h.s = 'retreat'; }
-      else if (h.s === 'retreat') { h.ext -= dt * 380; if (h.ext <= 0) { h.ext = 0; h.s = 'done'; } }
+      else if (h.s === 'retreat') { h.ext -= dt * 380; if (h.ext <= 0) { h.ext = 0; if (h.boss) { h.s = 'wait'; h.tm = rand(0.5, 1.1); } else h.s = 'done'; } }
       if (h.ext > 0) {
         const headX = h.side < 0 ? h.ext : W - h.ext;
         if (Math.abs(cy - h.y) < 20 && (h.side < 0 ? cx < headX + 12 : cx > headX - 12)) hit(h);
       }
-    } else if (dx * dx + dy * dy < Math.pow(h.r + 14, 2)) hit(h);
+    } else {
+      const d2 = dx * dx + dy * dy, R = h.r + 14;
+      if (d2 < R * R) { h.hitFlag = 1; hit(h); }
+      else if (d2 < (R + 22) * (R + 22)) h.near = 1;
+      else if (h.near) { h.near = 0; if (!h.hitFlag && nmT <= 0) nearMiss(1); }
+    }
+  }
+  for (const b of bosses) {
+    if (!b.seen && hook.y >= b.y0 - 260) { b.seen = 1; banner = { n: 'BOSS: ' + b.n, sub: 'Read the warnings. Cross clean for a bonus', t: 0 }; sfx.zone(); sfx.warn(); }
+    if (st === 'down' && b.seen && !b.cleared && hook.y > b.y1 + 60) {
+      b.cleared = 1;
+      if (!b.hurt) { const v = Math.round(mult() * (150 + depth * 1.5)); bonusCash += v; floats.push({ x: hook.x - 6, y: hook.y - 20, txt: 'BOSS +$' + fmt(v), col: '#7fffb0', life: 1.6 }); sfx.sell(); }
+      else toast('BOSS SURVIVED', '#ffd24a');
+    }
   }
 
   if (st === 'up') {
@@ -492,7 +581,8 @@ function updateDive(dt) {
     if (sh.warn > 0) { sh.warn -= dt; continue; }
     sh.x += sh.dir * sh.v * dt;
     if (sh.x < -190 || sh.x > W + 190) { sh.dead = 1; continue; }
-    if (Math.abs(sh.x - cx) < 58 && Math.abs(sh.y - cy) < 24) sharkHit(sh);
+    if (Math.abs(sh.x - cx) < 58 && Math.abs(sh.y - cy) < 24) { sh.hitF = 1; sharkHit(sh); }
+    else if (!sh.nm && !sh.hitF && Math.abs(sh.y - cy) < 40 && (sh.dir > 0 ? sh.x - cx > 64 : cx - sh.x > 64) && Math.abs(sh.x - cx) < 170) { sh.nm = 1; nearMiss(3, 'SHARK DODGED!'); }
   }
   sharks = sharks.filter(s => !s.dead);
   if (Math.random() < dt * 0.5) hazards = hazards.filter(h => !h.dead);

@@ -9,7 +9,7 @@ function glass(x, y, w, h, r, a) {
 }
 const PAL_BTN = {
   amber: ['#ffd84a', '#ff9a14', '#3a1d00'], green: ['#62e883', '#1ba84a', '#04260f'],
-  grey: ['#8b97a6', '#5a6574', '#1c232c'], blue: ['#59c8ff', '#1d78dd', '#031a35'], red: ['#ff6b6b', '#c91f3a', '#33000c']
+  grey: ['#8b97a6', '#5a6574', '#1c232c'], blue: ['#59c8ff', '#1d78dd', '#031a35'], red: ['#ff6b6b', '#c91f3a', '#33000c'], purple: ['#b98cff', '#6a35d8', '#1b0a45']
 };
 function button(x, y, w, h, label, fn, o) {
   o = o || {};
@@ -241,12 +241,12 @@ function rebirthCard(y, h) {
 
 function drawTrophyScreen() {
   screenBg();
-  const rows = Math.ceil(SP.length / 2);
-  scrollMax = Math.max(0, 96 + rows * 178 - H + 20);
+  const rows = Math.ceil(SP.length / 2), SO = SETS.length * 50 + 8;
+  scrollMax = Math.max(0, 96 + SO + rows * 178 - H + 20);
   scrollY = clamp(scrollY, 0, scrollMax);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 78, W, H - 78); ctx.clip();
   SP.forEach((sp, i) => {
-    const cx = 14 + (i % 2) * 222, cy = 94 + Math.floor(i / 2) * 178 - scrollY, cw = 210;
+    const cx = 14 + (i % 2) * 222, cy = 94 + SO + Math.floor(i / 2) * 178 - scrollY, cw = 210;
     if (cy < -170 || cy > H) return;
     const got = !!S.caught[sp.n];
     glass(cx, cy, cw, 166, 18, 0.7);
@@ -257,6 +257,14 @@ function drawTrophyScreen() {
     rr(cx + 12, cy + 124, cw - 24, 30, 15); ctx.fillStyle = got ? '#ffb829' : 'rgba(255,255,255,0.12)'; ctx.fill();
     txt(got ? sp.n + ' x' + S.caught[sp.n] : '???', cx + cw / 2, cy + 140, 17, got ? '#4a2600' : '#8fa3bb');
     if (got) txt('$' + fmt(sp.v), cx + cw - 12, cy + 16, 14, '#ffd24a', 'right');
+    if (S.shiny[sp.n]) { star(cx + 20, cy + 18, 11, true); }
+  });
+  SETS.forEach((ss, i) => {
+    const y = 90 + i * 50 - scrollY, have = ss.idx.filter(k => S.caught[SP[k].n]).length, dn = !!S.sets[ss.n];
+    glass(14, y, W - 28, 42, 14, 0.7);
+    txt(ss.n + ' SET', 28, y + 22, 18, dn ? '#7fffb0' : '#fff', 'left', 3);
+    txt(have + '/' + ss.idx.length, 170, y + 22, 17, '#9fe8ff', 'left');
+    txt(dn ? 'DONE' : '+$' + fmt(ss.base) + (ss.skin ? ' + STYLE' : ''), W - 28, y + 22, 17, dn ? '#7fffb0' : '#ffd24a', 'right');
   });
   ctx.restore();
   header('TROPHIES');
@@ -264,6 +272,46 @@ function drawTrophyScreen() {
   txt(got + '/' + SP.length, W - 18, 38, 28, '#ffd24a', 'right', 4);
 }
 
+function star(x, y, r, on) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr_ = i % 2 ? r * 0.45 : r; ctx.lineTo(x + Math.cos(a) * rr_, y + Math.sin(a) * rr_); }
+  ctx.closePath(); ctx.fillStyle = on ? '#ffd21f' : 'rgba(255,255,255,0.18)'; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = on ? '#a86a00' : 'rgba(255,255,255,0.35)'; ctx.stroke();
+}
+function drawGift() {
+  screenBg(); header('DAILY CHEST');
+  const g = giftInfo();
+  txt('Come back every day for bigger chests!', W / 2, 112, 18, '#9bd7ff');
+  for (let i = 0; i < 7; i++) {
+    const big = i === 6, w = big ? W - 28 : 98, x = big ? 14 : 14 + (i % 4) * 106, y = 140 + (big ? 2 : Math.floor(i / 4)) * 116, h = 104;
+    const got = i < g.done, cur = i === g.next && !g.claimed;
+    const pul = cur ? 1 + 0.03 * Math.sin(t * 6) : 1;
+    ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.scale(pul, pul); ctx.translate(-w / 2, -h / 2);
+    glass(0, 0, w, h, 16, got ? 0.4 : 0.75);
+    if (cur) { rr(0, 0, w, h, 16); ctx.lineWidth = 3; ctx.strokeStyle = '#ffd21f'; ctx.stroke(); }
+    txt('DAY ' + (i + 1), w / 2, 18, 17, got ? '#7fffb0' : '#fff', 'center', 3);
+    poly([[w / 2 - 18, 44], [w / 2 + 18, 44], [w / 2 + 18, 66], [w / 2 - 18, 66]], got ? '#4a7a5a' : '#c98a00');
+    poly([[w / 2 - 20, 36], [w / 2 + 20, 36], [w / 2 + 20, 44], [w / 2 - 20, 44]], got ? '#5c9a70' : '#ffd24a');
+    if (got) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(w / 2 - 8, 54); ctx.lineTo(w / 2 - 2, 61); ctx.lineTo(w / 2 + 9, 47); ctx.stroke(); }
+    txt('$' + fmt(giftBase() * GIFT_K[i]) + (big ? '  + PIRATE STYLE' : ''), w / 2, 88, big ? 18 : 16, '#ffd24a', 'center', 3);
+    ctx.restore();
+  }
+  button(14, H - 130, W - 28, 80, g.claimed ? 'COME BACK TOMORROW' : 'CLAIM!', doClaim, { size: g.claimed ? 26 : 46, disabled: g.claimed, shine: !g.claimed });
+}
+function drawStyles() {
+  screenBg(); header('STYLES');
+  SKINS.forEach((sk, i) => {
+    const y = 92 + i * 108, own = !!S.skins[sk.id], on = S.skin === sk.id && own;
+    glass(14, y, W - 28, 98, 18, 0.7);
+    ctx.save(); ctx.translate(70, y + 52);
+    const gr = ctx.createLinearGradient(0, -20, 0, 14); gr.addColorStop(0, sk.hull[0]); gr.addColorStop(1, sk.hull[1]);
+    poly([[-44, -14], [44, -14], [30, 18], [-30, 18]], own ? gr : '#3a4658');
+    ctx.fillStyle = own ? sk.trail : '#5a6678'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(-6 + k * 10, 34 + k * 3, 3 - k * 0.6, 0, TAU); ctx.fill(); }
+    ctx.restore();
+    txt(sk.n, 136, y + 34, 26, own ? '#fff' : '#8fa3bb', 'left', 4);
+    if (!own) txt(sk.hint, 136, y + 66, 16, '#ffd24a', 'left');
+    else button(W - 128, y + 26, 104, 46, on ? 'EQUIPPED' : 'USE', () => { S.skin = sk.id; save(); sfx.tap(); }, { color: on ? 'grey' : 'blue', light: true, size: on ? 17 : 24, disabled: on });
+  });
+}
 function drawMenu() {
   drawWorld();
   const bg = ctx.createLinearGradient(0, H - 260, 0, H); bg.addColorStop(0, 'rgba(4,16,31,0)'); bg.addColorStop(0.5, 'rgba(4,16,31,0.7)'); bg.addColorStop(1, 'rgba(4,16,31,0.92)');
@@ -299,9 +347,11 @@ function drawMenu() {
   const ph = 1 + 0.04 * Math.sin(t * 3);
   ctx.save(); ctx.translate(W / 2, ty); ctx.scale(ph, ph); txt('TAP TO START FISHING!', 0, 0, 30, '#fff', 'center', 7); ctx.restore();
   // bottom buttons
-  const bw = (W - 28 - 12) / 2;
-  button(14, H - 196, bw, 62, 'SHOP', () => { sfx.tap(); go('shop'); }, { color: 'blue', light: true, size: 28, badge: affordable() });
-  button(14 + bw + 12, H - 196, bw, 62, 'TROPHIES', () => { sfx.tap(); go('trophy'); }, { color: 'blue', light: true, size: 26 });
+  const bw = (W - 28 - 16) / 3, dd = S.dailyDate === today() ? S.dailyTier : 0;
+  button(14, H - 268, W - 28, 62, 'DAILY DIVE', () => { sfx.tap(); startDive(true); }, { color: 'purple', light: true, size: 30, dx: -34, draw: (w) => { for (let k = 0; k < 3; k++) star(w - 100 + k * 30, 31, 12, k < dd); } });
+  button(14, H - 196, bw, 62, 'SHOP', () => { sfx.tap(); go('shop'); }, { color: 'blue', light: true, size: 26, badge: affordable() });
+  button(14 + bw + 8, H - 196, bw, 62, 'FISH', () => { sfx.tap(); go('trophy'); }, { color: 'blue', light: true, size: 26 });
+  button(14 + 2 * (bw + 8), H - 196, bw, 62, 'STYLES', () => { sfx.tap(); go('styles'); }, { color: 'blue', light: true, size: 22 });
   button(14, H - 118, W - 28, 88, 'GO FISH!', () => { sfx.tap(); startDive(); }, { size: 52, shine: 1 });
 }
 
@@ -317,15 +367,25 @@ function drawResultPanel() {
     if (res.newT) rows.push(['NEW TROPHY!', '', '#ff8fc7']);
     if (res.mbonus > 0) rows.push(['MISSION BONUS', '+$' + fmt(res.mbonus), '#7fffb0']);
   }
-  const ph = 190 + rows.length * 34, pw = W - 50, px = 25, py = Math.max(100, H * 0.5 - ph / 2) + (1 - u) * 140;
+  if (res.daily) {
+    const dl = res.daily; rows.length = 0;
+    rows.push(['BEST TODAY', fmt(S.dailyBest), '#fff']);
+    if (res.near > 0) rows.push(['NEAR MISSES', '' + res.near, '#7fe8ff']);
+    rows.push([dl.reward > 0 ? 'STAR REWARD' : 'STAR GOALS', dl.reward > 0 ? '+$' + fmt(dl.reward) : DAILY_T.map(v => fmt(v)).join('/'), dl.reward > 0 ? '#7fffb0' : '#9bc4e8']);
+  } else {
+    if (res.bonus > 0) rows.push(['BONUSES', '+$' + fmt(res.bonus), '#7fe8ff']);
+    for (const n of res.setsDone || []) rows.push(['SET DONE: ' + n, '', '#ffb0f0']);
+  }
+  const ph = 190 + rows.length * 34 + (res.daily ? 36 : 0), pw = W - 50, px = 25, py = Math.max(100, H * 0.5 - ph / 2) + (1 - u) * 140;
   ctx.globalAlpha = u;
   glass(px, py, pw, ph, 24, 0.82);
   rr(px, py, pw, ph, 24); ctx.lineWidth = 2.5; ctx.strokeStyle = fail ? 'rgba(255,90,90,0.8)' : 'rgba(255,220,120,0.8)'; ctx.stroke();
-  txt(fail ? 'LINE SNAPPED!' : 'DIVE COMPLETE', W / 2, py + 38, 36, fail ? '#ff6b6b' : '#fff', 'center', 6);
+  txt(fail ? 'LINE SNAPPED!' : (res.daily ? 'DAILY DIVE' : 'DIVE COMPLETE'), W / 2, py + 38, 36, fail ? '#ff6b6b' : '#fff', 'center', 6);
   const cu = clamp((resT - 0.45) / 1.0, 0, 1), shown = Math.round(res.earned * eOut(cu));
-  txt((fail ? 'SALVAGED  +$' : '+$') + fmt(shown), W / 2, py + 100, fail ? 40 : 62, '#ffe14d', 'center', 8);
+  txt(res.daily ? 'SCORE ' + fmt(shown) : (fail ? 'SALVAGED  +$' : '+$') + fmt(shown), W / 2, py + 100, fail || res.daily ? 40 : 62, '#ffe14d', 'center', 8);
+  if (res.daily) for (let k = 0; k < 3; k++) star(W / 2 - 40 + k * 40, py + 140, 15, k < res.daily.tier);
   rows.forEach((r, i) => {
-    const y = py + 160 + i * 34;
+    const y = py + 160 + (res.daily ? 36 : 0) + i * 34;
     txt(r[0], px + 26, y, 20, r[2], 'left', 4); txt(r[1], px + pw - 26, y, 22, r[2], 'right', 4);
   });
   if (fail) txt('Dodge hazards or grab a SHIELD / REPAIR!', W / 2, py + ph - 24, 15, '#9bc4e8');
@@ -339,6 +399,8 @@ function draw() {
   btns.length = 0;
   if (st === 'shop') drawShop();
   else if (st === 'trophy') drawTrophyScreen();
+  else if (st === 'gift') drawGift();
+  else if (st === 'styles') drawStyles();
   else {
     ctx.save();
     if (shake > 0) ctx.translate(rand(-1, 1) * shake * 14, rand(-1, 1) * shake * 14);
@@ -390,7 +452,7 @@ function release(e) {
   if (b && tap && p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h) { if (b.disabled) sfx.deny(); else b.fn(); return; }
   if (d.b) return;
   if (st === 'result' && resT > 0.9) { toMenu(); return; }
-  if (st === 'menu' && tap && p.y > 190 && p.y < H - 210) { sfx.tap(); startDive(); }
+  if (st === 'menu' && tap && p.y > 190 && p.y < H - 280) { sfx.tap(); startDive(); }
 }
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', () => { pDown = null; pressedId = null; });

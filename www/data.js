@@ -28,8 +28,10 @@ function shade(c, k) { const a = hex(c); return rgb(k >= 0 ? a.map(v => v + (255
 function rgba(c, al) { const a = hex(c); return 'rgba(' + a[0] + ',' + a[1] + ',' + a[2] + ',' + al + ')'; }
 
 /* ---------- save data ---------- */
-let S = { money: 0, ld: 0, lc: 0, lv: 0, lk: 0, ls: 0, lr: 0, pearls: 0, caught: {}, ms: [], gift: '', mute: 0, dives: 0, best: 0 };
+let S = { money: 0, ld: 0, lc: 0, lv: 0, lk: 0, ls: 0, lr: 0, pearls: 0, caught: {}, ms: [], gift: '', mute: 0, dives: 0, best: 0, streakDays: 0, dailyDate: '', dailyTier: 0, dailyBest: 0, sets: {}, skins: { classic: 1 }, skin: 'classic', shiny: {} };
 try { Object.assign(S, JSON.parse(localStorage.getItem('deepcatch3') || localStorage.getItem('deepcatch') || '{}')); } catch (e) {}
+for (const k of ['sets', 'skins', 'shiny', 'caught']) if (!S[k] || typeof S[k] !== 'object') S[k] = {};
+if (!S.skins.classic) S.skins.classic = 1;
 function save() { try { localStorage.setItem('deepcatch3', JSON.stringify(S)); } catch (e) {} }
 const today = () => { try { return new Date().toISOString().slice(0, 10); } catch (e) { return ''; } };
 
@@ -60,11 +62,12 @@ const SHARK = { n: 'Shark', c: '#7d8f9c', a: '#56677a', b: '#eef3f6', len: 112, 
 
 /* ---------- progression ---------- */
 const depthFor = l => l <= 10 ? 60 + 40 * l : 460 + 70 * (l - 10);
-const depthMax = () => depthFor(S.ld);
-const cap = () => 3 + 2 * S.lc;
-const mult = () => (1 + 0.25 * S.lv) * (1 + 0.4 * S.pearls);
-const maxHp = () => 3 + S.ls;
-const reel = () => 1 + 0.05 * S.lr;
+let DAILY = false;
+const depthMax = () => DAILY ? 400 : depthFor(S.ld);
+const cap = () => DAILY ? 11 : 3 + 2 * S.lc;
+const mult = () => DAILY ? 1 : (1 + 0.25 * S.lv) * (1 + 0.4 * S.pearls);
+const maxHp = () => DAILY ? 4 : 3 + S.ls;
+const reel = () => DAILY ? 1.3 : 1 + 0.05 * S.lr;
 const REBIRTH_LD = 14;
 
 const COSTK = (typeof COSTK_OVR !== 'undefined') ? COSTK_OVR : 2;
@@ -172,3 +175,35 @@ const sfx = {
   zone: () => { tone(260, 0.3, 'sine', 0.06, 1.6); }
 };
 function vib(ms) { if (S.mute) return; try { navigator.vibrate(ms); } catch (e) {} }
+
+/* ---------- retention content ---------- */
+const SETS = [
+  { n: 'REEF', idx: [0, 1, 2, 3, 4, 5], base: 600, skin: 'ocean' },
+  { n: 'OPEN WATER', idx: [6, 7, 8, 9, 10], base: 5000 },
+  { n: 'TWILIGHT', idx: [11, 12, 13, 14], base: 40000 },
+  { n: 'DEEP', idx: [15, 16, 17, 18], base: 300000, skin: 'gold' }
+];
+const SKINS = [
+  { id: 'classic', n: 'CLASSIC', hull: ['#d12a2a', '#8c1212'], trail: '#ffffff', hint: '' },
+  { id: 'ocean', n: 'OCEAN', hull: ['#3a98f0', '#14489a'], trail: '#7fe3ff', hint: 'Finish REEF set' },
+  { id: 'pirate', n: 'PIRATE', hull: ['#55556a', '#16161e'], trail: '#ff6b6b', hint: '7-day streak' },
+  { id: 'toxic', n: 'TOXIC', hull: ['#7cf05a', '#2a9a1a'], trail: '#9dff7a', hint: 'Rebirth once' },
+  { id: 'gold', n: 'GOLDEN', hull: ['#ffe066', '#c98a00'], trail: '#ffe14d', hint: 'Finish DEEP set' }
+];
+const BOSSN = ['KRAKEN', 'HYDRA', 'THE WARDEN', 'TIDE TITAN', 'THE OLD ONE'];
+const skinObj = () => SKINS.find(s => s.id === S.skin && S.skins[s.id]) || SKINS[0];
+function unlockSkin(id) {
+  if (S.skins[id]) return false;
+  S.skins[id] = 1; save();
+  const sk = SKINS.find(s => s.id === id);
+  if (typeof toast === 'function' && sk) toast('NEW STYLE: ' + sk.n + '!', '#ffe9a8');
+  return true;
+}
+const dayNum = d => { const v = Date.parse((d || '1970-01-01') + 'T00:00:00Z'); return isNaN(v) ? 0 : Math.floor(v / 86400000); };
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+const DAILY_T = [6000, 14000, 26000];
+const lvlSum = () => S.ld + S.lc + S.lv + S.lk + S.ls + S.lr;
+const dailyReward = tier => Math.round([0, 1, 2.2, 4][tier] * (300 + 150 * lvlSum()) * (1 + 0.4 * S.pearls));
+const giftBase = () => (80 + 80 * lvlSum()) * (1 + 0.4 * S.pearls);
+const GIFT_K = [1, 1.3, 1.7, 2.2, 2.8, 3.5, 8];
